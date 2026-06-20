@@ -188,6 +188,7 @@ Vercel provides automated Continuous Integration and Continuous Deployment (CI/C
 ```json
 {
   "cleanUrls": true,
+  "outputDirectory": "dist",
   "rewrites": [
     {
       "source": "/api/:path*",
