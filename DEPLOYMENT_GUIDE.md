@@ -115,7 +115,7 @@ git push -u origin main
          "destination": "https://intro-connect-backend.vercel.app/api/:path*"
        },
        {
-         "source": "/((?!api|assets|favicon.ico|logo.png|.*\\.).*)",
+         "source": "/:path*",
          "destination": "/index.html"
        }
      ]
@@ -195,7 +195,7 @@ Vercel provides automated Continuous Integration and Continuous Deployment (CI/C
       "destination": "https://your-backend-vercel-url.vercel.app/api/:path*"
     },
     {
-      "source": "/((?!api).*)/?",
+      "source": "/:path*",
       "destination": "/index.html"
     }
   ]
