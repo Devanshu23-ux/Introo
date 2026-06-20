@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams } from "react-router";
 import useAuthUser from "../hooks/useAuthUser";
 import { useQuery } from "@tanstack/react-query";
@@ -27,6 +27,7 @@ const ChatPage = () => {
   const [chatClient, setChatClient] = useState(null);
   const [channel, setChannel] = useState(null);
   const [loading, setLoading] = useState(true);
+  const clientRef = useRef(null);
 
   const { authUser } = useAuthUser();
 
@@ -40,10 +41,12 @@ const ChatPage = () => {
     const initChat = async () => {
       if (!tokenData?.token || !authUser) return;
 
+      let client = null;
+
       try {
         console.log("Initializing stream chat client...");
 
-        const client = StreamChat.getInstance(STREAM_API_KEY);
+        client = StreamChat.getInstance(STREAM_API_KEY);
 
         await client.connectUser(
           {
@@ -67,17 +70,41 @@ const ChatPage = () => {
 
         await currChannel.watch();
 
+        clientRef.current = client;
         setChatClient(client);
         setChannel(currChannel);
       } catch (error) {
         console.error("Error initializing chat:", error);
         toast.error("Could not connect to chat. Please try again.");
+        // Clean up client if connection failed
+        if (client) {
+          try {
+            await client.disconnectUser();
+          } catch (disconnectError) {
+            console.error("Error disconnecting client:", disconnectError);
+          }
+        }
       } finally {
         setLoading(false);
       }
     };
 
     initChat();
+
+    // Cleanup function to disconnect when component unmounts or dependencies change
+    return () => {
+      if (clientRef.current) {
+        clientRef.current
+          .disconnectUser()
+          .then(() => {
+            console.log("Stream client disconnected");
+          })
+          .catch((error) => {
+            console.error("Error disconnecting Stream client:", error);
+          });
+        clientRef.current = null;
+      }
+    };
   }, [tokenData, authUser, targetUserId]);
 
   const handleVideoCall = () => {

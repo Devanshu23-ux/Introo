@@ -11,23 +11,65 @@ const SignUpPage = () => {
     password: "",
   });
 
-  // This is how we did it at first, without using our custom hook
-  // const queryClient = useQueryClient();
-  // const {
-  //   mutate: signupMutation,
-  //   isPending,
-  //   error,
-  // } = useMutation({
-  //   mutationFn: signup,
-  //   onSuccess: () => queryClient.invalidateQueries({ queryKey: ["authUser"] }),
-  // });
+  // Validation errors state
+  const [errors, setErrors] = useState({
+    fullName: "",
+    email: "",
+    password: "",
+  });
 
   // This is how we did it using our custom hook - optimized version
   const { isPending, error, signupMutation } = useSignUp();
 
+  // Validation function
+  const validate = () => {
+    const newErrors = {
+      fullName: "",
+      email: "",
+      password: "",
+    };
+
+    // Full Name validation
+    if (!signupData.fullName.trim()) {
+      newErrors.fullName = "Full name is required";
+    } else if (signupData.fullName.trim().length < 2) {
+      newErrors.fullName = "Full name must be at least 2 characters";
+    }
+
+    // Email validation
+    if (!signupData.email.trim()) {
+      newErrors.email = "Email is required";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(signupData.email)) {
+      newErrors.email = "Please enter a valid email address";
+    }
+
+    // Password validation
+    if (!signupData.password) {
+      newErrors.password = "Password is required";
+    } else if (signupData.password.length < 6) {
+      newErrors.password = "Password must be at least 6 characters";
+    }
+
+    setErrors(newErrors);
+    return !newErrors.fullName && !newErrors.email && !newErrors.password;
+  };
+
   const handleSignup = (e) => {
     e.preventDefault();
-    signupMutation(signupData);
+    
+    // Validate before submitting
+    if (validate()) {
+      signupMutation(signupData);
+    }
+  };
+
+  // Clear error when user types
+  const handleChange = (field, value) => {
+    setSignupData({ ...signupData, [field]: value });
+    // Clear error for this field when user starts typing
+    if (errors[field]) {
+      setErrors({ ...errors, [field]: "" });
+    }
   };
 
   return (
@@ -59,7 +101,7 @@ const SignUpPage = () => {
                 <div>
                   <h2 className="text-xl font-semibold">Create an Account</h2>
                   <p className="text-sm opacity-70">
-                    Join IntroConnect and start your language learning adventure!
+                    Join IntroConnect and meet new friends today!
                   </p>
                 </div>
 
@@ -72,11 +114,15 @@ const SignUpPage = () => {
                     <input
                       type="text"
                       placeholder="John Doe"
-                      className="input input-bordered w-full"
+                      className={`input input-bordered w-full ${errors.fullName ? "input-error" : ""}`}
                       value={signupData.fullName}
-                      onChange={(e) => setSignupData({ ...signupData, fullName: e.target.value })}
-                      required
+                      onChange={(e) => handleChange("fullName", e.target.value)}
                     />
+                    {errors.fullName && (
+                      <label className="label">
+                        <span className="label-text-alt text-error">{errors.fullName}</span>
+                      </label>
+                    )}
                   </div>
                   {/* EMAIL */}
                   <div className="form-control w-full">
@@ -86,11 +132,15 @@ const SignUpPage = () => {
                     <input
                       type="email"
                       placeholder="john@gmail.com"
-                      className="input input-bordered w-full"
+                      className={`input input-bordered w-full ${errors.email ? "input-error" : ""}`}
                       value={signupData.email}
-                      onChange={(e) => setSignupData({ ...signupData, email: e.target.value })}
-                      required
+                      onChange={(e) => handleChange("email", e.target.value)}
                     />
+                    {errors.email && (
+                      <label className="label">
+                        <span className="label-text-alt text-error">{errors.email}</span>
+                      </label>
+                    )}
                   </div>
                   {/* PASSWORD */}
                   <div className="form-control w-full">
@@ -100,14 +150,19 @@ const SignUpPage = () => {
                     <input
                       type="password"
                       placeholder="********"
-                      className="input input-bordered w-full"
+                      className={`input input-bordered w-full ${errors.password ? "input-error" : ""}`}
                       value={signupData.password}
-                      onChange={(e) => setSignupData({ ...signupData, password: e.target.value })}
-                      required
+                      onChange={(e) => handleChange("password", e.target.value)}
                     />
-                    <p className="text-xs opacity-70 mt-1">
-                      Password must be at least 6 characters long
-                    </p>
+                    {errors.password ? (
+                      <label className="label">
+                        <span className="label-text-alt text-error">{errors.password}</span>
+                      </label>
+                    ) : (
+                      <p className="text-xs opacity-70 mt-1">
+                        Password must be at least 6 characters long
+                      </p>
+                    )}
                   </div>
 
                   <div className="form-control">

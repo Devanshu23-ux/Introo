@@ -15,9 +15,12 @@ const PORT = process.env.PORT;
 
 const __dirname = path.resolve();
 
+const CORS_ORIGIN = process.env.CORS_ORIGIN || "http://localhost:5173";
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    origin: CORS_ORIGIN,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true, // allow frontend to send cookies
   })
 );
@@ -37,7 +40,13 @@ if (process.env.NODE_ENV === "production") {
   });
 }
 
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-  connectDB();
-});
+// Connect to database
+connectDB();
+
+if (process.env.NODE_ENV !== "production" || !process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+  });
+}
+
+export default app;

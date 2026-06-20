@@ -9,23 +9,56 @@ const LoginPage = () => {
     password: "",
   });
 
-  // This is how we did it at first, without using our custom hook
-  // const queryClient = useQueryClient();
-  // const {
-  //   mutate: loginMutation,
-  //   isPending,
-  //   error,
-  // } = useMutation({
-  //   mutationFn: login,
-  //   onSuccess: () => queryClient.invalidateQueries({ queryKey: ["authUser"] }),
-  // });
+  // Validation errors state
+  const [errors, setErrors] = useState({
+    email: "",
+    password: "",
+  });
 
   // This is how we did it using our custom hook - optimized version
   const { isPending, error, loginMutation } = useLogin();
 
+  // Validation function
+  const validate = () => {
+    const newErrors = {
+      email: "",
+      password: "",
+    };
+
+    // Email validation
+    if (!loginData.email.trim()) {
+      newErrors.email = "Email is required";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(loginData.email)) {
+      newErrors.email = "Please enter a valid email address";
+    }
+
+    // Password validation
+    if (!loginData.password) {
+      newErrors.password = "Password is required";
+    } else if (loginData.password.length < 6) {
+      newErrors.password = "Password must be at least 6 characters";
+    }
+
+    setErrors(newErrors);
+    return !newErrors.email && !newErrors.password;
+  };
+
   const handleLogin = (e) => {
     e.preventDefault();
-    loginMutation(loginData);
+    
+    // Validate before submitting
+    if (validate()) {
+      loginMutation(loginData);
+    }
+  };
+
+  // Clear error when user types
+  const handleChange = (field, value) => {
+    setLoginData({ ...loginData, [field]: value });
+    // Clear error for this field when user starts typing
+    if (errors[field]) {
+      setErrors({ ...errors, [field]: "" });
+    }
   };
 
   return (
@@ -69,11 +102,15 @@ const LoginPage = () => {
                     <input
                       type="email"
                       placeholder="hello@example.com"
-                      className="input input-bordered w-full"
+                      className={`input input-bordered w-full ${errors.email ? "input-error" : ""}`}
                       value={loginData.email}
-                      onChange={(e) => setLoginData({ ...loginData, email: e.target.value })}
-                      required
+                      onChange={(e) => handleChange("email", e.target.value)}
                     />
+                    {errors.email && (
+                      <label className="label">
+                        <span className="label-text-alt text-error">{errors.email}</span>
+                      </label>
+                    )}
                   </div>
 
                   <div className="form-control w-full space-y-2">
@@ -83,11 +120,15 @@ const LoginPage = () => {
                     <input
                       type="password"
                       placeholder="••••••••"
-                      className="input input-bordered w-full"
+                      className={`input input-bordered w-full ${errors.password ? "input-error" : ""}`}
                       value={loginData.password}
-                      onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
-                      required
+                      onChange={(e) => handleChange("password", e.target.value)}
                     />
+                    {errors.password && (
+                      <label className="label">
+                        <span className="label-text-alt text-error">{errors.password}</span>
+                      </label>
+                    )}
                   </div>
 
                   <button type="submit" className="btn btn-primary w-full" disabled={isPending}>

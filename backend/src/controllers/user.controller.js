@@ -1,5 +1,6 @@
 import User from "../models/User.js";
 import FriendRequest from "../models/FriendRequest.js";
+import { upsertStreamUser } from "../lib/stream.js";
 
 export async function getRecommendedUsers(req, res) {
   try {
@@ -24,7 +25,7 @@ export async function getMyFriends(req, res) {
   try {
     const user = await User.findById(req.user.id)
       .select("friends")
-      .populate("friends", "fullName profilePic nativeLanguage learningLanguage");
+      .populate("friends", "fullName profilePic nativeLanguage");
 
     res.status(200).json(user.friends);
   } catch (error) {
@@ -70,6 +71,7 @@ export async function sendFriendRequest(req, res) {
     const friendRequest = await FriendRequest.create({
       sender: myId,
       recipient: recipientId,
+      // recipientSeenPending defaults to false (unread for recipient)
     });
 
     res.status(201).json(friendRequest);
@@ -95,6 +97,10 @@ export async function acceptFriendRequest(req, res) {
     }
 
     friendRequest.status = "accepted";
+    // When accepted: mark sender's accepted notification as unread
+    friendRequest.senderSeenAccepted = false;
+    // No need for recipientSeenPending anymore, but mark as read to clear any lingering badge
+    friendRequest.recipientSeenPending = true;
     await friendRequest.save();
 
     // add each user to the other's friends array
@@ -106,6 +112,32 @@ export async function acceptFriendRequest(req, res) {
     await User.findByIdAndUpdate(friendRequest.recipient, {
       $addToSet: { friends: friendRequest.sender },
     });
+
+    // Ensure both users exist in Stream before they can chat
+    // This prevents "could not connect" errors when opening chat for the first time
+    const [sender, recipient] = await Promise.all([
+      User.findById(friendRequest.sender),
+      User.findById(friendRequest.recipient),
+    ]);
+
+    try {
+      await Promise.all([
+        upsertStreamUser({
+          id: sender._id.toString(),
+          name: sender.fullName,
+          image: sender.profilePic || "",
+        }),
+        upsertStreamUser({
+          id: recipient._id.toString(),
+          name: recipient.fullName,
+          image: recipient.profilePic || "",
+        }),
+      ]);
+      console.log(`Stream users ensured for friendship: ${sender.fullName} <-> ${recipient.fullName}`);
+    } catch (streamError) {
+      console.log("Error ensuring Stream users during friend acceptance:", streamError.message);
+      // Don't fail the request if Stream upsert fails, but log it
+    }
 
     res.status(200).json({ message: "Friend request accepted" });
   } catch (error) {
@@ -119,14 +151,20 @@ export async function getFriendRequests(req, res) {
     const incomingReqs = await FriendRequest.find({
       recipient: req.user.id,
       status: "pending",
-    }).populate("sender", "fullName profilePic nativeLanguage learningLanguage");
+    }).populate("sender", "fullName profilePic nativeLanguage");
 
     const acceptedReqs = await FriendRequest.find({
       sender: req.user.id,
       status: "accepted",
     }).populate("recipient", "fullName profilePic");
 
-    res.status(200).json({ incomingReqs, acceptedReqs });
+    // Also include accepted requests where current user was the recipient (they accepted someone else)
+    const acceptedByMe = await FriendRequest.find({
+      recipient: req.user.id,
+      status: "accepted",
+    }).populate("sender", "fullName profilePic");
+
+    res.status(200).json({ incomingReqs, acceptedReqs, acceptedByMe });
   } catch (error) {
     console.log("Error in getPendingFriendRequests controller", error.message);
     res.status(500).json({ message: "Internal Server Error" });
@@ -138,11 +176,44 @@ export async function getOutgoingFriendReqs(req, res) {
     const outgoingRequests = await FriendRequest.find({
       sender: req.user.id,
       status: "pending",
-    }).populate("recipient", "fullName profilePic nativeLanguage learningLanguage");
+    }).populate("recipient", "fullName profilePic nativeLanguage");
 
     res.status(200).json(outgoingRequests);
   } catch (error) {
     console.log("Error in getOutgoingFriendReqs controller", error.message);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+}
+
+export async function markNotificationsRead(req, res) {
+  try {
+    const userId = req.user.id;
+    const { type } = req.query; // 'pending' | 'accepted' | 'all'
+
+    const ops = [];
+
+    if (type === "pending" || type === "all") {
+      ops.push(
+        FriendRequest.updateMany(
+          { recipient: userId, status: "pending", recipientSeenPending: false },
+          { $set: { recipientSeenPending: true } }
+        )
+      );
+    }
+
+    if (type === "accepted" || type === "all") {
+      ops.push(
+        FriendRequest.updateMany(
+          { sender: userId, status: "accepted", senderSeenAccepted: false },
+          { $set: { senderSeenAccepted: true } }
+        )
+      );
+    }
+
+    await Promise.all(ops);
+    res.status(200).json({ success: true });
+  } catch (error) {
+    console.error("Error in markNotificationsRead controller", error.message);
     res.status(500).json({ message: "Internal Server Error" });
   }
 }
