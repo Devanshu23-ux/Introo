@@ -1,0 +1,14 @@
+{
+  "cleanUrls": true,
+  "outputDirectory": "frontend/dist",
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://intro-connect-backend.vercel.app/api/:path*"
+    },
+    {
+      "source": "/((?!api).*)/?",
+      "destination": "/index.html"
+    }
+  ]
+}
